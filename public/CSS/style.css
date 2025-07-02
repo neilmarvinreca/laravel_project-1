@@ -1,0 +1,108 @@
+
+/* General layout and design settings */
+/* style.css */
+
+/* Global Styles */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f0f4f8;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+/* Layouts and other styles remain as defined previously */
+
+
+/* Flex container for login/register */
+.auth-container {
+    display: flex;
+    flex-direction: row;
+    width: 90%;
+    max-width: 1100px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+/* Flex container for the logo and content */
+.auth-left {
+    flex: 1;
+    background-color: #003366;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem;
+    text-align: center;
+}
+
+.auth-left img.auth-logo {
+    max-width: 15vw;  /* Adjusted logo size */
+    height: auto;
+    width: auto;
+}
+
+.auth-right {
+    flex: 1;
+    padding: 3rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.auth-title {
+    font-size: 2rem;
+    margin-bottom: 1.5rem;
+    color: #003366;
+    text-align: center;
+}
+
+.auth-input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 1rem;
+}
+
+.auth-button {
+    width: 100%;
+    padding: 0.8rem;
+    background-color: #003366;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.auth-button:hover {
+    background-color: #002244;
+}
+
+@media (max-width: 768px) {
+    .auth-container {
+        flex-direction: column;
+        height: auto;
+    }
+
+    .auth-left, .auth-right {
+        width: 100%;
+        padding: 2rem;
+    }
+
+    .auth-left {
+        border-bottom: 2px solid #eee;
+    }
+
+    .auth-logo {
+        max-width: 40vw; /* Adjust logo for mobile */
+    }
+}
