@@ -12,7 +12,11 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\NewPasswordController;
-use App\Http\Controllers\InventoryController;
+
+use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\DeployedItemController;
+use App\Http\Controllers\DeploymentRequestController;
+
 
 // Authentication Routes
 Route::middleware('guest')->group(function () {
@@ -41,23 +45,61 @@ Route::middleware('auth')->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
+    // Deployment Requests
+    Route::resource('deployment-requests', DeploymentRequestController::class)->only(['index', 'show', 'store', 'update']);
+    Route::get('deployment-requests/approvers', [DeploymentRequestController::class, 'getApprovers'])->name('deployment-requests.approvers');
+    
+    // Deployed Items - Archive routes must be defined before the resource route
+    Route::prefix('deployed-items')->name('deployed-items.')->group(function () {
+        Route::get('archived', [DeployedItemController::class, 'archived'])->name('archived');
+        Route::put('{id}/archive', [DeployedItemController::class, 'archive'])->name('archive');
+        Route::post('{id}/restore', [DeployedItemController::class, 'restore'])->name('restore');
+        Route::delete('{id}/force-delete', [DeployedItemController::class, 'forceDelete'])->name('force-delete');
+    });
+    
+    // Deployed Items Resource Route
+    Route::resource('deployed-items', DeployedItemController::class);
+    
+    // Archive routes for supplies - Placing these before the resource route to avoid conflicts
+    Route::get('supplies/archived', [SupplyController::class, 'archived'])->name('supplies.archived');
+    Route::put('supplies/{supply}/archive', [SupplyController::class, 'archive'])->name('supplies.archive');
+    Route::put('supplies/{supply}/restore', [SupplyController::class, 'restore'])->name('supplies.restore');
+    Route::delete('supplies/{supply}/force-delete', [SupplyController::class, 'forceDelete'])->name('supplies.force-delete');
+    
+    // Archive routes for departments - Placing these before the resource route to avoid conflicts
+    Route::get('departments/archived', [DepartmentController::class, 'archived'])->name('departments.archived');
+    Route::put('departments/{department}/archive', [DepartmentController::class, 'archive'])->name('departments.archive');
+    Route::put('departments/{department}/restore', [DepartmentController::class, 'restore'])->name('departments.restore');
+    Route::delete('departments/{department}/force-delete', [DepartmentController::class, 'forceDelete'])->name('departments.force-delete');
+    
     // Supplies
     Route::resource('supplies', SupplyController::class);
+    
+    // Deployment form route with simpler path
+    Route::get('deploy-supplies', [SupplyController::class, 'deployForm'])->name('supplies.deploy');
+    
     Route::post('supplies/{supply}/restock', [SupplyController::class, 'restock'])->name('supplies.restock');
 
-    // Categories
-    Route::resource('categories', CategoryController::class);
-
-    // Transactions
-    Route::resource('transactions', TransactionController::class);
-    Route::get('transactions/export', [TransactionController::class, 'export'])->name('transactions.export');
+    // Archive routes - Placing these before the resource route to avoid conflicts
+    Route::get('categories/archived', [CategoryController::class, 'archived'])->name('categories.archived');
+    Route::put('categories/{category}/archive', [CategoryController::class, 'archive'])->name('categories.archive');
+    Route::put('categories/{category}/restore', [CategoryController::class, 'restore'])->name('categories.restore');
+    Route::delete('categories/{category}/force-delete', [CategoryController::class, 'forceDelete'])->name('categories.force-delete');
+    
+    // Categories - Using route model binding with explicit parameter name
+    // This is placed after the archive routes to prevent route conflicts
+    Route::resource('categories', CategoryController::class)->parameters([
+        'categories' => 'category'
+    ]);
 
     // Reports
     Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
     Route::get('reports/inventory', [ReportController::class, 'inventory'])->name('reports.inventory');
-    Route::get('reports/transactions', [ReportController::class, 'transactions'])->name('reports.transactions');
+    Route::get('reports/deployed-items', [ReportController::class, 'deployedItems'])->name('reports.deployed-items');
     Route::get('reports/low-stock', [ReportController::class, 'lowStock'])->name('reports.low-stock');
-    Route::get('reports/export/{type}', [ReportController::class, 'export'])->name('reports.export');
+    Route::get('reports/export/{type}', [ReportController::class, 'export'])
+        ->whereIn('type', ['inventory', 'low-stock', 'deployed-items'])
+        ->name('reports.export');
 
     // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -65,20 +107,18 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::put('profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
 
-    Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory');
-
-    // Admin only routes
-    Route::middleware(['admin'])->group(function () {
-        Route::resource('users', UserController::class);
+    // Users Management Routes
+    Route::prefix('users')->name('users.')->middleware(['auth', 'admin'])->group(function () {
+        Route::get('/', [\App\Http\Controllers\Auth\UserController::class, 'index'])->name('index');
+        Route::get('/create', [\App\Http\Controllers\Auth\UserController::class, 'create'])->name('create');
+        Route::post('/', [\App\Http\Controllers\Auth\UserController::class, 'store'])->name('store');
+        Route::get('/{user}/edit', [\App\Http\Controllers\Auth\UserController::class, 'edit'])->name('edit');
+        Route::put('/{user}', [\App\Http\Controllers\Auth\UserController::class, 'update'])->name('update');
+        Route::delete('/{user}', [\App\Http\Controllers\Auth\UserController::class, 'destroy'])->name('destroy');
     });
 
-    // Users Management Routes
-    Route::get('/users', [UserController::class, 'index'])->name('users.index');
-    Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
-    Route::post('/users', [UserController::class, 'store'])->name('users.store');
-    Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
-    Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
-    Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    // Departments
+    Route::resource('departments', DepartmentController::class);
 });
 
 // Redirect root to login if not authenticated

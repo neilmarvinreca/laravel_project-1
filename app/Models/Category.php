@@ -5,24 +5,63 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Category extends Model
 {
     use HasFactory, SoftDeletes;
 
+    protected $primaryKey = 'categoryID';
+    protected $table = 'categories';
+
     protected $fillable = [
-        'name',
-        'code',
-        'description'
+        'categoryName',
+        'description',
     ];
 
-    public function supplies()
+    protected $appends = ['supplies_count'];
+    protected $casts = [
+        'created_at' => 'datetime:Y-m-d H:i:s',
+        'updated_at' => 'datetime:Y-m-d H:i:s',
+        'deleted_at' => 'datetime:Y-m-d H:i:s',
+    ];
+    protected $hidden = ['deleted_at'];
+
+    /**
+     * Get the route key for the model.
+     */
+    public function getRouteKeyName()
     {
-        return $this->hasMany(Supply::class);
+        return 'categoryID';
     }
 
     /**
-     * Get the total value of all supplies in this category.
+     * Set the categoryName attribute.
+     */
+    public function setCategoryNameAttribute($value)
+    {
+        $this->attributes['categoryName'] = trim($value);
+    }
+
+    /**
+     * All supplies for the category.
+     */
+    public function supplies()
+    {
+        return $this->hasMany(Supply::class, 'category_id', 'categoryID')
+            ->with('department');
+    }
+
+    /**
+     * Supplies count attribute.
+     */
+    public function getSuppliesCountAttribute()
+    {
+        return $this->supplies()->count();
+    }
+
+    /**
+     * Total value of all supplies in this category.
      */
     public function getTotalValue(): float
     {
@@ -32,7 +71,7 @@ class Category extends Model
     }
 
     /**
-     * Get the count of low stock items in this category.
+     * Count of low stock items in this category.
      */
     public function getLowStockCount(): int
     {

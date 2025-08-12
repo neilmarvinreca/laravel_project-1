@@ -26,11 +26,19 @@
             </a>
         </li>
         <li>
-            <a href="{{ route('transactions.index') }}" class="side-menu {{ request()->routeIs('transactions.*') ? 'side-menu--active' : '' }}">
+            <a href="{{ route('departments.index') }}" class="side-menu {{ request()->routeIs('departments.*') ? 'side-menu--active' : '' }}">
                 <div class="side-menu__icon">
-                    <i data-lucide="repeat"></i>
+                    <i data-lucide="users"></i>
                 </div>
-                <div class="side-menu__title">Transactions</div>
+                <div class="side-menu__title">Departments</div>
+            </a>
+        </li>
+        <li>
+            <a href="{{ route('deployed-items.index') }}" class="side-menu {{ request()->routeIs('deployed-items.*') ? 'side-menu--active' : '' }}">
+                <div class="side-menu__icon">
+                    <i data-lucide="truck"></i>
+                </div>
+                <div class="side-menu__title">Deployed Items</div>
             </a>
         </li>
         <li>

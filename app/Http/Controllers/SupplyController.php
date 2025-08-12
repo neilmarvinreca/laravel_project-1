@@ -4,30 +4,115 @@ namespace App\Http\Controllers;
 
 use App\Models\Supply;
 use App\Models\Category;
+use App\Models\Department;
+use App\Models\DeployedItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class SupplyController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $supplies = Supply::with('category')
-            ->orderBy('name')
-            ->paginate(10);
-
-        return view('supplies.index', compact('supplies'));
+        // Debug: Log the request parameters
+        \Log::info('SupplyController@index', ['request' => $request->all()]);
+        
+        // Create a new query builder instance
+        $query = Supply::query();
+        
+        // Eager load relationships
+        $query->with(['category', 'department']);
+        
+        // Get departments for the filter
+        $departments = \App\Models\Department::orderBy('officename')->get();
+        
+        // Apply department filter if provided
+        if ($request->filled('department_id')) {
+            $query->whereHas('department', function($q) use ($request) {
+                $q->where('departmentID', $request->department_id);
+            });
+        }
+        
+        // Apply search filter if provided
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%")
+                  ->orWhere('itemID', 'like', "%{$search}%");
+            });
+        }
+        
+        // Execute the query with pagination, ordered by itemID ascending
+        $supplies = $query->orderBy('itemID', 'asc')->paginate(10)
+            ->appends($request->query());
+        
+        // Debug: Log the query SQL and bindings
+        \Log::info('Supply Query', [
+            'sql' => $query->toSql(),
+            'bindings' => $query->getBindings(),
+            'supplies_type' => get_class($supplies),
+            'supplies_count' => $supplies->count(),
+            'supplies_total' => $supplies->total()
+        ]);
+        
+        return view('supplies.index', compact('supplies', 'departments'));
     }
 
+    /**
+     * Create a new controller instance.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        $this->middleware('auth');
+    }
+    
+    /**
+     * Show the form for deploying supplies.
+     *
+     * @return \Illuminate\View\View
+     */
+    public function deployForm()
+    {
+        // Check if DeployedItem model exists and is accessible
+        if (!class_exists(DeployedItem::class)) {
+            throw new \RuntimeException('DeployedItem model class not found');
+        }
+        
+        // Generate a unique deployed ID
+        $deployedID = 'DEP-' . now()->format('Ymd') . '-' . strtoupper(Str::random(6));
+        
+        // Get departments for the dropdown
+        $departments = Department::orderBy('officename')->get();
+        
+        // Get categories for the dropdown
+        $categories = Category::orderBy('categoryName')->get();
+        
+        // Get supplies for the dropdown
+        $supplies = Supply::orderBy('name')->get();
+        
+        return view('supplies.deploy', [
+            'deployedID' => $deployedID,
+            'departments' => $departments,
+            'categories' => $categories,
+            'supplies' => $supplies
+        ]);
+    }
+    
     /**
      * Show the form for creating a new resource.
      */
     public function create()
     {
-        $categories = Category::orderBy('name')->get();
-        return view('supplies.create', compact('categories'));
+        $categories = Category::orderBy('categoryName')->get();
+        $departments = Department::orderBy('officename')->get();
+        return view('supplies.create', compact('categories', 'departments'));
     }
 
     /**
@@ -38,18 +123,20 @@ class SupplyController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'category_id' => 'required|exists:categories,id',
+            'acquired_at' => 'required|date',
+            'estimated_life' => 'nullable|string',
+            'added_by' => 'required|exists:users,id',
+            'unit_cost' => 'required|numeric',
+            'category_id' => 'required|exists:categories,categoryID',
             'quantity' => 'required|integer|min:0',
-            'minimum_stock' => 'required|integer|min:0',
-            'unit' => 'required|string|max:50',
-            'unit_cost' => 'required|numeric|min:0',
-            'location' => 'nullable|string|max:255',
-            'supplier' => 'nullable|string|max:255',
-            'supplier_contact' => 'nullable|string|max:255',
+            'amount' => 'required|numeric|min:0',
+            'fund_code' => 'required|string|max:255',
+            'pp_sub_account' => 'required|string|max:255',
+            'gl_code' => 'required|string|max:255',
         ]);
-
+        
         $supply = Supply::create($validated);
-
+        
         return redirect()
             ->route('supplies.index')
             ->with('success', 'Supply created successfully.');
@@ -60,10 +147,7 @@ class SupplyController extends Controller
      */
     public function show(Supply $supply)
     {
-        $supply->load(['category', 'transactions' => function ($query) {
-            $query->latest()->take(5);
-        }]);
-
+        $supply->load(['category', 'department']);
         return view('supplies.show', compact('supply'));
     }
 
@@ -72,8 +156,9 @@ class SupplyController extends Controller
      */
     public function edit(Supply $supply)
     {
-        $categories = Category::orderBy('name')->get();
-        return view('supplies.edit', compact('supply', 'categories'));
+        $categories = Category::orderBy('categoryName')->get();
+        $departments = Department::orderBy('officename')->get();
+        return view('supplies.edit', compact('supply', 'categories', 'departments'));
     }
 
     /**
@@ -84,18 +169,21 @@ class SupplyController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'category_id' => 'required|exists:categories,id',
-            'quantity' => 'required|integer|min:0',
-            'minimum_stock' => 'required|integer|min:0',
-            'unit' => 'required|string|max:50',
+            'acquired_at' => 'required|date',
+            'estimated_life' => 'nullable|string',
             'unit_cost' => 'required|numeric|min:0',
-            'location' => 'nullable|string|max:255',
-            'supplier' => 'nullable|string|max:255',
-            'supplier_contact' => 'nullable|string|max:255',
+            'quantity' => 'required|integer|min:0',
+            'amount' => 'required|numeric|min:0',
+            'category_id' => 'required|exists:categories,categoryID',
+            // 'department_id' removed from update validation
+            'fund_code' => 'required|string|max:255',
+            'pp_sub_account' => 'required|string|max:255',
+            'gl_code' => 'required|string|max:255',
+            'added_by' => 'required|exists:users,id'
         ]);
-
+        
         $supply->update($validated);
-
+        
         return redirect()
             ->route('supplies.index')
             ->with('success', 'Supply updated successfully.');
@@ -127,6 +215,94 @@ class SupplyController extends Controller
             return redirect()
                 ->route('supplies.index')
                 ->with('error', 'An error occurred while deleting the supply.');
+        }
+    }
+    
+    /**
+     * Display a listing of archived supplies.
+     *
+     * @return \Illuminate\View\View
+     */
+    public function archived()
+    {
+        $supplies = Supply::onlyTrashed()
+            ->with(['category', 'department'])
+            ->orderBy('deleted_at', 'desc')
+            ->paginate(10);
+            
+        return view('supplies.archived', compact('supplies'));
+    }
+    
+    /**
+     * Archive the specified supply.
+     *
+     * @param  \App\Models\Supply  $supply
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function archive(Supply $supply)
+    {
+        try {
+            $supply->delete();
+            
+            return redirect()
+                ->route('supplies.index')
+                ->with('success', 'Supply archived successfully.');
+        } catch (\Exception $e) {
+            return redirect()
+                ->route('supplies.index')
+                ->with('error', 'An error occurred while archiving the supply.');
+        }
+    }
+    
+    /**
+     * Restore the specified archived supply.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function restore($id)
+    {
+        try {
+            $supply = Supply::onlyTrashed()->findOrFail($id);
+            $supply->restore();
+            
+            return redirect()
+                ->route('supplies.archived')
+                ->with('success', 'Supply restored successfully.');
+        } catch (\Exception $e) {
+            return redirect()
+                ->route('supplies.archived')
+                ->with('error', 'An error occurred while restoring the supply.');
+        }
+    }
+    
+    /**
+     * Permanently delete the specified archived supply.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function forceDelete($id)
+    {
+        try {
+            $supply = Supply::onlyTrashed()->findOrFail($id);
+            
+            // Check if there are any related transactions
+            if ($supply->transactions()->exists()) {
+                return redirect()
+                    ->route('supplies.archived')
+                    ->with('error', 'Cannot permanently delete supply with existing transactions.');
+            }
+            
+            $supply->forceDelete();
+            
+            return redirect()
+                ->route('supplies.archived')
+                ->with('success', 'Supply permanently deleted.');
+        } catch (\Exception $e) {
+            return redirect()
+                ->route('supplies.archived')
+                ->with('error', 'An error occurred while permanently deleting the supply.');
         }
     }
 } 

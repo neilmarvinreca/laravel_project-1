@@ -1,203 +1,278 @@
 @extends('layouts.app')
 
 @section('title', 'Categories')
+<link href="{{ asset('dist/images/logodssc.png') }}" rel="shortcut icon">
+
+
 
 @section('content')
-<div class="intro-y flex flex-col sm:flex-row items-center mt-8">
-    <h2 class="text-lg font-medium mr-auto">Category Management</h2>
-    <div class="w-full sm:w-auto flex mt-4 sm:mt-0">
-        <a href="{{ route('categories.create') }}" class="btn btn-primary shadow-md mr-2">
-            <i data-lucide="plus" class="w-4 h-4 mr-2"></i> Add New Category
-        </a>
-    </div>
-</div>
-
-<!-- Categories Table -->
-<div class="intro-y box p-5 mt-5">
-    <div class="overflow-x-auto">
-        <table class="table table-report -mt-2">
-            <thead>
-                <tr>
-                    <th class="whitespace-nowrap">Name</th>
-                    <th class="whitespace-nowrap">Description</th>
-                    <th class="text-center whitespace-nowrap">Supplies Count</th>
-                    <th class="text-center whitespace-nowrap">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse($categories as $category)
-                    <tr class="intro-x">
-                        <td>{{ $category->name }}</td>
-                        <td>{{ $category->description }}</td>
-                        <td class="text-center">{{ $category->supplies_count }}</td>
-                        <td class="table-report__action w-56">
-                            <div class="flex justify-center items-center">
-                                <a href="{{ route('categories.edit', $category) }}" class="flex items-center mr-3">
-                                    <i data-lucide="check-square" class="w-4 h-4 mr-1"></i> Edit
-                                </a>
-                                <form action="{{ route('categories.destroy', $category) }}" method="POST" class="inline-block">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="flex items-center text-danger"
-                                        onclick="return confirmDelete({{ $category->supplies_count }})">
-                                        <i data-lucide="trash-2" class="w-4 h-4 mr-1"></i> Delete
-                                    </button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="4" class="text-center">No categories found.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-    <!-- Pagination -->
-    <div class="intro-y col-span-12 flex flex-wrap sm:flex-row sm:flex-nowrap items-center mt-5">
-        {{ $categories->links() }}
-    </div>
-</div>
-
-<!-- Create Category Modal -->
-<div id="createCategoryModal" class="modal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="{{ route('categories.store') }}" method="POST">
-                @csrf
-                <div class="modal-header">
-                    <h2 class="font-medium text-base mr-auto">Add New Category</h2>
-                    <button type="button" data-tw-dismiss="modal" class="btn btn-outline-secondary">
+<div class="max-w-5xl mx-auto py-8">
+    <div class="flex flex-col sm:flex-row items-center mb-6">
+        <h2 class="text-2xl font-semibold text-gray-900 mr-auto">Category Management</h2>
+        <div class="flex mt-4 sm:mt-0">
+            <form action="{{ route('categories.index') }}" method="GET" class="flex items-center">
+                <input
+                    type="text"
+                    name="search"
+                    value="{{ request('search') }}"
+                    placeholder="Search categories..."
+                    class="form-control w-64 search-box h-10 px-3 border border-gray-300 rounded-md"
+                >
+                @if(request('search'))
+                    <a href="{{ route('categories.index') }}"
+                       class="btn btn-secondary ml-2 h-10 px-3 flex items-center justify-center rounded-md bg-gray-200 hover:bg-gray-300">
                         <i data-lucide="x" class="w-4 h-4"></i>
-                    </button>
-                </div>
-                <div class="modal-body grid grid-cols-12 gap-4 gap-y-3">
-                    <div class="col-span-12">
-                        <label for="name" class="form-label">Category Name</label>
-                        <input type="text" id="name" name="name" class="form-control @error('name') border-danger @enderror" 
-                            value="{{ old('name') }}" required>
-                        @error('name')
-                            <div class="text-danger mt-2">{{ $message }}</div>
-                        @enderror
-                    </div>
-                    <div class="col-span-12">
-                        <label for="description" class="form-label">Description</label>
-                        <textarea id="description" name="description" class="form-control @error('description') border-danger @enderror" 
-                            rows="3">{{ old('description') }}</textarea>
-                        @error('description')
-                            <div class="text-danger mt-2">{{ $message }}</div>
-                        @enderror
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" data-tw-dismiss="modal" class="btn btn-outline-secondary w-20 mr-1">Cancel</button>
-                    <button type="submit" class="btn btn-primary w-20">Add</button>
-                </div>
+                    </a>
+                @endif
+                <button type="submit"
+                        class="btn btn-primary ml-2 h-10 px-3 flex items-center justify-center rounded-md bg-blue-600 text-white hover:bg-blue-700">
+                    <i data-lucide="search" class="w-4 h-4"></i>
+                </button>
             </form>
+            <a href="{{ route('categories.create') }}"
+               class="btn btn-primary shadow-md ml-2 h-10 px-4 flex items-center justify-center rounded-md bg-green-600 text-white hover:bg-green-700">
+                <i data-lucide="plus" class="w-4 h-4 mr-2"></i> Add New Category
+            </a>
+            <a href="{{ route('categories.archived') }}"
+               class="btn btn-primary shadow-md ml-2 h-10 px-4 flex items-center justify-center rounded-md bg-blue-600 text-white hover:bg-blue-700">
+                <i data-lucide="archive" class="w-4 h-4 mr-2"></i> View Archived
+            </a>
         </div>
+    </div>
+
+
+    <div class="bg-white shadow rounded-lg p-6">
+        @if($categories->isEmpty() && !request('search'))
+            <div class="text-center py-8">
+                <i data-lucide="inbox" class="w-16 h-16 mx-auto text-gray-400"></i>
+                <h3 class="mt-2 text-lg font-medium">No categories yet</h3>
+                <p class="text-gray-500 mb-4">Get started by creating a new category.</p>
+            </div>
+        @else
+            <div class="overflow-x-auto">
+                <table class="table table-report">
+                    <thead>
+                        <tr>
+                            <th class="w-16">ID</th>
+                            <th class="min-w-[250px]">Category Name</th>
+                            <th>Description</th>
+                            <th class="w-24">Supplies</th>
+                            <th class="w-32">Created</th>
+                            <th class="w-32">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($categories as $category)
+                            <tr>
+                                <td>{{ $category->categoryID ?? $category->id }}</td>
+                                <td class="whitespace-nowrap">
+                                    <div class="font-medium">
+                                        {{ $category->categoryName }}
+                                    </div>
+                                </td>
+                                <td class="max-w-sm">
+                                    <div class="text-gray-600 text-sm line-clamp-2">
+                                        {{ $category->description ?? 'No description' }}
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                                        {{ $category->supplies_count }} {{ Str::plural('item', $category->supplies_count) }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="text-xs text-gray-500">
+                                        {{ optional($category->created_at)->format('M d, Y') }}
+                                        <div class="text-gray-400">{{ $category->created_at->diffForHumans() }}</div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="flex space-x-3">
+                                        <a href="{{ route('categories.edit', $category) }}" class="btn btn-sm btn-primary w-8 h-8 flex items-center justify-center p-0 mx-2">
+                                            <i data-lucide="edit" class="w-4 h-4"></i>
+                                        </a>
+                                        <a href="{{ route('categories.show', $category) }}" class="btn btn-sm btn-info w-8 h-8 flex items-center justify-center p-0 mx-2" title="View">
+                                            <i data-lucide="eye" class="w-4 h-4"></i>
+                                        </a>
+                                        <form action="{{ route('categories.archive', $category) }}" method="POST" class="inline">
+                                            @csrf
+                                            @method('PUT')
+                                            <button type="button" 
+                                                    data-category-name="{{ $category->categoryName }}"
+                                                    data-supplies-count="{{ $category->supplies_count }}"
+                                                    class="btn btn-sm w-8 h-8 flex items-center justify-center p-0 mx-2 archive-btn"
+                                                    style="background-color: #f59e0b; border-color: #f59e0b; color: white;"
+                                                    title="Archive Category">
+                                                <i data-lucide="archive" class="w-4 h-4"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="text-center py-8">
+                                    <i data-lucide="search-x" class="w-12 h-12 mx-auto text-gray-400"></i>
+                                    <p class="mt-2 text-gray-500">No categories found matching your search.</p>
+                                    <a href="{{ route('categories.index') }}" class="btn btn-outline-secondary mt-4">
+                                        <i data-lucide="rotate-ccw" class="w-4 h-4 mr-2"></i> Reset Search
+                                    </a>
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            @if($categories->hasPages())
+                <div class="mt-5">
+                    {{ $categories->withQueryString()->links() }}
+                </div>
+            @endif
+        @endif
     </div>
 </div>
-
-<!-- Edit Category Modals -->
-@foreach($categories as $category)
-    <div id="editCategoryModal{{ $category->id }}" class="modal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <form action="{{ route('categories.update', $category) }}" method="POST">
-                    @csrf
-                    @method('PUT')
-                    <div class="modal-header">
-                        <h2 class="font-medium text-base mr-auto">Edit Category</h2>
-                        <button type="button" data-tw-dismiss="modal" class="btn btn-outline-secondary">
-                            <i data-lucide="x" class="w-4 h-4"></i>
-                        </button>
-                    </div>
-                    <div class="modal-body grid grid-cols-12 gap-4 gap-y-3">
-                        <div class="col-span-12">
-                            <label for="edit_name_{{ $category->id }}" class="form-label">Category Name</label>
-                            <input type="text" id="edit_name_{{ $category->id }}" name="name" 
-                                class="form-control @error('name') border-danger @enderror"
-                                value="{{ $category->name }}" required>
-                            @error('name')
-                                <div class="text-danger mt-2">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        <div class="col-span-12">
-                            <label for="edit_description_{{ $category->id }}" class="form-label">Description</label>
-                            <textarea id="edit_description_{{ $category->id }}" name="description" 
-                                class="form-control @error('description') border-danger @enderror"
-                                rows="3">{{ $category->description }}</textarea>
-                            @error('description')
-                                <div class="text-danger mt-2">{{ $message }}</div>
-                            @enderror
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" data-tw-dismiss="modal" class="btn btn-outline-secondary w-20 mr-1">Cancel</button>
-                        <button type="submit" class="btn btn-primary w-20">Update</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-@endforeach
 @endsection
 
 @push('scripts')
 <script>
+// Debug: Check if SweetAlert2 is loaded
+console.log('SweetAlert2 loaded:', typeof Swal !== 'undefined' ? 'Yes' : 'No');
+
+// Add event listener to all archive buttons when the DOM is fully loaded
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Lucide icons
-    lucide.createIcons();
+    // Debug: Log when the DOM is fully loaded
+    console.log('DOM fully loaded');
     
-    // Initialize all modals
-    const modals = document.querySelectorAll('.modal');
-    modals.forEach(function(el) {
-        const modal = tailwind.Modal.getOrCreateInstance(el);
-        
-        // Store original values when modal opens
-        el.addEventListener('show.tw.modal', function(event) {
-            const form = el.querySelector('form');
-            if (form) {
-                const inputs = form.querySelectorAll('input[type="text"], textarea');
-                inputs.forEach(input => {
-                    input.dataset.originalValue = input.value;
-                });
-            }
-        });
-
-        // Reset to original values if modal is closed without saving
-        el.addEventListener('hidden.tw.modal', function(event) {
-            const form = el.querySelector('form');
-            if (form) {
-                const inputs = form.querySelectorAll('input[type="text"], textarea');
-                inputs.forEach(input => {
-                    if (input.dataset.originalValue) {
-                        input.value = input.dataset.originalValue;
-                    }
-                });
-            }
-        });
-    });
-
-    // Handle form submissions
-    const forms = document.querySelectorAll('form');
-    forms.forEach(function(form) {
-        form.addEventListener('submit', function(event) {
-            const submitButton = form.querySelector('button[type="submit"]');
-            if (submitButton) {
-                submitButton.disabled = true;
-            }
+    // Add click event listener to all archive forms
+    document.querySelectorAll('form[action*="/archive"] button[type="button"]').forEach(button => {
+        button.addEventListener('click', function(e) {
+            console.log('Archive button clicked');
+            const form = this.closest('form');
+            const categoryName = this.getAttribute('data-category-name');
+            const suppliesCount = parseInt(this.getAttribute('data-supplies-count') || '0');
+            console.log('Button data:', { categoryName, suppliesCount, form });
+            
+            // Call confirmArchive with the correct parameters
+            confirmArchive(categoryName, form, suppliesCount);
         });
     });
 });
-
-function confirmDelete(suppliesCount) {
+function confirmArchive(name, form, suppliesCount) {
+    console.log('confirmArchive called with:', { name, form, suppliesCount });
     if (suppliesCount > 0) {
-        alert('This category cannot be deleted because it has ' + suppliesCount + ' supplies associated with it. Please move or delete the supplies first.');
-        return false;
+        Swal.fire({
+            title: 'Category in Use',
+            html: `
+                <div class="text-center py-2">
+                    <i data-lucide="alert-triangle" class="w-12 h-12 mx-auto text-yellow-500 mb-2"></i>
+                    <p class="text-sm text-gray-600 mb-1">
+                        Cannot archive <span class="font-medium">${name}</span>.
+                    </p>
+                    <p class="text-xs text-gray-500">
+                        ${suppliesCount} ${suppliesCount === 1 ? 'supply' : 'supplies'} associated.
+                    </p>
+                </div>
+            `,
+            showConfirmButton: true,
+            confirmButtonText: 'Got it',
+            customClass: {
+                confirmButton: 'btn btn-sm btn-warning px-3 py-1 text-xs',
+                popup: 'text-sm'
+            },
+            buttonsStyling: false,
+            width: '20rem',
+            padding: '1rem'
+        });
+        return;
     }
-    return confirm('Are you sure you want to delete this category?');
+    
+    Swal.fire({
+        title: 'Archive Category',
+        html: `
+            <div class="text-center py-2">
+                <i data-lucide="archive" class="w-10 h-10 mx-auto text-blue-500 mb-2"></i>
+                <p class="text-sm text-gray-600 mb-1">
+                    Archive <span class="font-medium">${name}</span>?
+                </p>
+                <p class="text-xs text-gray-500">
+                    This category will be moved to the archive.
+                </p>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Archive',
+        cancelButtonText: 'Cancel',
+        reverseButtons: true,
+        customClass: {
+            confirmButton: 'btn btn-sm btn-warning px-4 py-1 text-xs',
+            cancelButton: 'btn btn-sm btn-outline-secondary px-4 py-1 text-xs mr-2',
+            popup: 'text-sm',
+            actions: 'mt-3'
+        },
+        buttonsStyling: false,
+        width: '20rem',
+        padding: '1rem',
+        showLoaderOnConfirm: true,
+        preConfirm: () => {
+            return new Promise((resolve) => {
+                const confirmButton = document.querySelector('.swal2-confirm');
+                if (confirmButton) {
+                    confirmButton.innerHTML = '<i class="animate-spin -ml-1 mr-1 h-3 w-3">↻</i> Archiving...';
+                    confirmButton.disabled = true;
+                }
+                form.submit();
+            });
+        }
+    });
 }
+
+// Archive function remains - delete functionality is handled in archived.blade.php
+
+// Handle form submission response
+@if(session('success'))
+    Swal.fire({
+        title: 'Success',
+        html: `
+            <div class="text-center py-2">
+                <i data-lucide="check-circle" class="w-10 h-10 mx-auto text-green-500 mb-2"></i>
+                <p class="text-sm text-gray-600">
+                    {{ session('success') }}
+                </p>
+            </div>
+        `,
+        showConfirmButton: true,
+        confirmButtonText: 'OK',
+        customClass: {
+            confirmButton: 'btn btn-sm btn-warning px-4 py-1 text-xs',
+            popup: 'text-sm',
+            actions: 'mt-3'
+        },
+        buttonsStyling: false,
+        width: '20rem',
+        padding: '1rem'
+    });
+@elseif(session('error'))
+    Swal.fire({
+        title: 'Error',
+        html: `
+            <div class="text-center py-2">
+                <i data-lucide="x-circle" class="w-10 h-10 mx-auto text-red-500 mb-2"></i>
+                <p class="text-sm text-gray-600">
+                    {{ session('error') }}
+                </p>
+            </div>
+        `,
+        showConfirmButton: true,
+        confirmButtonText: 'OK',
+        customClass: {
+            confirmButton: 'btn btn-sm btn-warning px-4 py-1 text-xs',
+            popup: 'text-sm',
+            actions: 'mt-3'
+        },
+        buttonsStyling: false,
+        width: '20rem',
+        padding: '1rem'
+    });
+@endif
 </script>
 @endpush

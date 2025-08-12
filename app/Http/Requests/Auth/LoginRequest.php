@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use App\Models\User as UserModel;
 
 class LoginRequest extends FormRequest
 {
@@ -29,6 +30,7 @@ class LoginRequest extends FormRequest
         return [
             'email' => ['required', 'string', 'email'],
             'password' => ['required', 'string'],
+            'role' => ['required', 'string', 'in:'.implode(',', UserModel::ROLES)],
         ];
     }
 
@@ -40,6 +42,17 @@ class LoginRequest extends FormRequest
     public function authenticate(): void
     {
         $this->ensureIsNotRateLimited();
+
+        // Enforce that the selected role matches the user's stored role
+        $user = UserModel::where('email', $this->input('email'))
+            ->select(['id', 'role', 'password'])
+            ->first();
+
+        if ($user && $this->filled('role') && $this->input('role') !== $user->role) {
+            throw ValidationException::withMessages([
+                'role' => 'The selected role does not match this account.',
+            ]);
+        }
 
         if (!Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());

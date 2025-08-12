@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('supplies', function (Blueprint $table) {
-            $table->integer('minimum_quantity')->default(10)->after('quantity');
+            $table->integer('minimum_stock')->after('quantity');
         });
     }
 
@@ -22,7 +22,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('supplies', function (Blueprint $table) {
-            $table->dropColumn('minimum_quantity');
+            $table->dropColumn('minimum_stock');
         });
     }
-}; 
+};

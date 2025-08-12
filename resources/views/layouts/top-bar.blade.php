@@ -4,7 +4,7 @@
         <!-- BEGIN: Logo -->
         <div class="flex items-center">
             <a href="{{ route('dashboard') }}" class="-intro-x flex items-center">
-                <img alt="DSSC Logo" class="w-60" src="http://studentportal.dssc.edu.ph:4455/uploads/settings/1_theG1690183835.gif">
+                <img alt="DSSC Logo" class="w-60" src="http://202.137.126.204:4455/uploads/settings/1_theG1690183835.gif">
                 <span class="text-white text-lg ml-3">Supply and Property Inventory Management System</span>
             </a>
         </div>
@@ -19,15 +19,85 @@
         </nav>
         <!-- END: Breadcrumb -->
 
-        <!-- BEGIN: Account Menu -->
-        <div class="intro-x dropdown ml-auto">
-            <div class="dropdown-toggle flex items-center" role="button" aria-expanded="false" data-tw-toggle="dropdown">
-                <div class="w-8 h-8 rounded-full overflow-hidden shadow-lg image-fit zoom-in">
-                    <img alt="{{ auth()->user()->name }}" src="{{ asset('dist/images/logodssc.png') }}">
+        <div class="flex items-center ml-auto">
+            <!-- BEGIN: Notifications -->
+            @php
+                $pendingRequests = \App\Models\DeploymentRequest::with(['deployedItem', 'requester'])
+                    ->where('status', 'pending')
+                    ->orderBy('created_at', 'desc')
+                    ->take(10)
+                    ->get();
+                $unreadCount = $pendingRequests->count();
+            @endphp
+            <div class="intro-x dropdown mr-4">
+                <div class="dropdown-toggle notification {{ $unreadCount > 0 ? 'notification--bullet' : '' }} cursor-pointer" 
+                    role="button" 
+                    aria-expanded="false" 
+                    data-tw-toggle="dropdown">
+                    <i data-lucide="bell" class="w-5 h-5 dark:text-slate-500"></i>
+                    @if($unreadCount > 0)
+                        <span class="absolute top-0 right-0 w-2 h-2 bg-danger rounded-full"></span>
+                    @endif
                 </div>
-                <div class="hidden sm:block ml-3 text-white">
-                    <div class="font-medium">{{ auth()->user()->name }}</div>
+                <div class="dropdown-menu w-80">
+                    <div class="dropdown-content bg-primary border border-slate-200/60 rounded-md shadow-lg">
+                        <div class="p-3 border-b border-slate-200/60">
+                            <div class="flex items-center justify-between">
+                                <h2 class="font-medium text-base text-white">Deployment Requests</h2>
+                                @if($unreadCount > 0)
+                                    <span class="bg-danger rounded-full px-2 py-0.5 text-xs text-white">{{ $unreadCount }} New</span>
+                                @endif
+                            </div>
+                        </div>
+                        <div class="max-h-60 overflow-y-auto">
+                            @forelse($pendingRequests as $request)
+                                <a href="{{ route('deployment-requests.show', $request->requestID) }}" class="block p-3 hover:bg-white/5 transition duration-300 ease-in-out">
+                                    <div class="flex items-center">
+                                        <div class="w-8 h-8 flex items-center justify-center rounded-full bg-primary/20 text-primary mr-3">
+                                            <i data-lucide="package" class="w-4 h-4"></i>
+                                        </div>
+                                        <div class="flex-1">
+                                            <div class="flex items-center justify-between">
+                                                <h3 class="font-medium text-white">{{ $request->deployedItem->itemName ?? 'Item' }}</h3>
+                                                <span class="text-xs text-slate-400">{{ $request->created_at->diffForHumans() }}</span>
+                                            </div>
+                                            <p class="text-slate-300 text-xs mt-0.5">
+                                                Requested by {{ $request->requester->name ?? 'User' }}
+                                            </p>
+                                            <div class="flex items-center mt-1">
+                                                <span class="bg-warning/10 text-warning text-xs px-2 py-0.5 rounded-full">
+                                                    {{ ucfirst($request->requestType) }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </a>
+                            @empty
+                                <div class="p-4 text-center">
+                                    <i data-lucide="bell-off" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
+                                    <p class="text-slate-400 text-sm">No new deployment requests</p>
+                                </div>
+                            @endforelse
+                        </div>
+                        <div class="p-3 border-t border-slate-200/60">
+                            <a href="{{ route('deployment-requests.index') }}" class="block text-center text-primary text-sm font-medium hover:underline">
+                                View All Requests
+                            </a>
+                        </div>
+                    </div>
                 </div>
+            </div>
+            <!-- END: Notifications -->
+
+            <!-- BEGIN: Account Menu -->
+            <div class="intro-x dropdown">
+                <div class="dropdown-toggle flex items-center" role="button" aria-expanded="false" data-tw-toggle="dropdown">
+                    <div class="w-8 h-8 rounded-full overflow-hidden shadow-lg image-fit zoom-in">
+                        <img alt="{{ auth()->user()->name }}" src="{{ asset('dist/images/logodssc.png') }}">
+                    </div>
+                    <div class="hidden sm:block ml-3 text-white">
+                        <div class="font-medium">{{ auth()->user()->name }}</div>
+                </div>      
             </div>
             <div class="dropdown-menu w-56">
                 <ul class="dropdown-content bg-primary/80 before:block before:absolute before:bg-black before:inset-0 before:rounded-md before:z-[-1] text-white">

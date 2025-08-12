@@ -10,25 +10,28 @@ class Supply extends Model
 {
     use HasFactory, SoftDeletes;
 
+    protected $primaryKey = 'itemID';
+
     protected $fillable = [
         'name',
         'description',
-        'category_id',
-        'quantity',
-        'minimum_stock',
-        'unit',
+        'acquired_at',
+        'estimated_life',
         'unit_cost',
-        'location',
-        'supplier',
-        'supplier_contact',
-        'last_restock_date',
+        'quantity',
+        'amount',
+        'category_id',
+        'fund_code',
+        'pp_sub_account',
+        'gl_code',
+        'added_by',
+        'department_id',
     ];
 
     protected $casts = [
         'quantity' => 'integer',
-        'minimum_stock' => 'integer',
         'unit_cost' => 'decimal:2',
-        'last_restock_date' => 'datetime',
+        'acquired_at' => 'datetime',
     ];
 
     /**
@@ -36,23 +39,35 @@ class Supply extends Model
      */
     public function category()
     {
-        return $this->belongsTo(Category::class);
+        return $this->belongsTo(Category::class, 'category_id', 'categoryID');
     }
 
     /**
-     * Get the transactions for the supply.
+     * Get the department that owns the supply.
      */
-    public function transactions()
+    public function department()
     {
-        return $this->hasMany(Transaction::class);
+        return $this->belongsTo(Department::class, 'department_id', 'departmentID');
+    }
+
+    /**
+     * Get the user who added the supply.
+     */
+    public function addedBy()
+    {
+        return $this->belongsTo(User::class, 'added_by', 'id');
     }
 
     /**
      * Check if the supply is low on stock.
+     * Note: This is a placeholder method since minimum_stock was removed.
+     * You may want to implement custom low stock logic based on your business requirements.
      */
     public function isLowStock(): bool
     {
-        return $this->quantity <= $this->minimum_stock;
+        // Default to false since we don't have minimum stock levels anymore
+        // You can implement custom logic here if needed
+        return false;
     }
 
     /**
@@ -61,5 +76,13 @@ class Supply extends Model
     public function getTotalValue(): float
     {
         return $this->quantity * $this->unit_cost;
+    }
+    
+    /**
+     * Get all deployed items for this supply.
+     */
+    public function deployedItems()
+    {
+        return $this->hasMany(DeployedItem::class, 'supply_id', 'itemID');
     }
 }

@@ -1,18 +1,19 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Auth;
 
 use App\Models\User;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rules\Password;
+use App\Models\User as UserModel;
 
 class UserController extends Controller
 {
     public function __construct()
     {
-        parent::__construct();
         $this->middleware('admin');
     }
 
@@ -38,6 +39,7 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
+            'role' => ['required', 'string', 'in:'.implode(',', UserModel::ROLES)],
             'password' => ['required', 'confirmed', Password::defaults()],
             'is_admin' => ['boolean']
         ]);
@@ -60,6 +62,7 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email,' . $user->id],
+            'role' => ['required', 'string', 'in:'.implode(',', UserModel::ROLES)],
             'password' => ['nullable', 'confirmed', Password::defaults()],
             'is_admin' => ['boolean']
         ]);

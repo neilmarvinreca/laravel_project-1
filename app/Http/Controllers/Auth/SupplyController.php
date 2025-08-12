@@ -11,22 +11,44 @@ use Illuminate\Support\Facades\Auth;
 
 class SupplyController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $supplies = Supply::with('category')
-            ->when(request('search'), function($query, $search) {
-                $query->where('name', 'like', "%{$search}%")
-                    ->orWhere('code', 'like', "%{$search}%");
-            })
-            ->when(request('category'), function($query, $category) {
-                $query->where('category_id', $category);
-            })
-            ->latest()
-            ->paginate(10);
-
+        // Debug: Log the request parameters
+        \Log::info('Auth/SupplyController@index', ['request' => $request->all()]);
+        
+        // Create a new query builder instance
+        $query = Supply::query();
+        
+        // Eager load relationships
+        $query->with(['category', 'department']);
+        
+        // Get departments for the filter
+        $departments = \App\Models\Department::orderBy('officename')->get();
+        
+        // Apply search filter if provided
+        if ($request->filled('search')) {
+            $query->where('name', 'like', "%{$request->search}%");
+        }
+        
+        // Apply department filter if provided
+        if ($request->filled('department_id')) {
+            $query->where('departmentID', $request->department_id);
+        }
+        
+        // Execute the query with pagination
+        $supplies = $query->orderBy('name')->paginate(10);
         $categories = Category::all();
+        
+        // Debug: Log the query SQL and bindings
+        \Log::info('Auth/Supply Query', [
+            'sql' => $query->toSql(),
+            'bindings' => $query->getBindings(),
+            'supplies_type' => get_class($supplies),
+            'supplies_count' => $supplies->count(),
+            'supplies_total' => $supplies->total()
+        ]);
 
-        return view('supplies.index', compact('supplies', 'categories'));
+        return view('supplies.index', compact('supplies', 'categories', 'departments'));
     }
 
     public function create()
@@ -38,27 +60,21 @@ class SupplyController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'code' => 'required|unique:supplies,code',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'acquired_at' => 'required|date',
+            'estimated_life' => 'nullable|string',
+            'unit_cost' => 'required|numeric|min:0',
             'quantity' => 'required|integer|min:0',
-            'minimum_quantity' => 'required|integer|min:0',
-            'unit_price' => 'required|numeric|min:0',
-            'category_id' => 'required|exists:categories,id',
-            'location' => 'nullable|string|max:255',
-            'supplier' => 'nullable|string|max:255',
+            'category_id' => 'required|exists:categories,categoryID',
+            'department_id' => 'required|exists:departments,departmentID',
+            'fund_code' => 'required|string|max:255',
+            'ppesubacc' => 'required|string|max:255',
+            'gl_code' => 'required|string|max:255',
+            'added_by' => 'required|exists:users,id',
         ]);
 
         $supply = Supply::create($validated);
-
-        // Record initial stock as a transaction
-        Transaction::create([
-            'supply_id' => $supply->id,
-            'user_id' => Auth::id(),
-            'type' => 'in',
-            'quantity' => $validated['quantity'],
-            'remarks' => 'Initial stock'
-        ]);
 
         return redirect()->route('supplies.index')
             ->with('success', 'Supply created successfully.');
@@ -84,12 +100,15 @@ class SupplyController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'acquired_at' => 'required|date',
+            'estimated_life' => 'nullable|string',
+            'unit_cost' => 'required|numeric|min:0',
             'quantity' => 'required|integer|min:0',
-            'minimum_quantity' => 'required|integer|min:0',
-            'unit_price' => 'required|numeric|min:0',
-            'category_id' => 'required|exists:categories,id',
-            'location' => 'nullable|string|max:255',
-            'supplier' => 'nullable|string|max:255',
+            'category_id' => 'required|exists:categories,categoryID',
+            'department_id' => 'required|exists:departments,departmentID',
+            'fund_code' => 'required|string|max:255',
+            'ppesubacc' => 'required|string|max:255',
+            'gl_code' => 'required|string|max:255',
         ]);
 
         $supply->update($validated);
@@ -114,7 +133,6 @@ class SupplyController extends Controller
         ]);
 
         $supply->increment('quantity', $validated['quantity']);
-        $supply->update(['last_restock_date' => now()]);
 
         Transaction::create([
             'supply_id' => $supply->id,

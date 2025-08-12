@@ -12,14 +12,19 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('supplies', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('category_id')->constrained()->onDelete('cascade');
+            $table->id('itemID');
             $table->string('name');
             $table->text('description')->nullable();
-            $table->integer('quantity')->default(0);
-            $table->integer('minimum_stock')->default(10);
-            $table->string('unit')->nullable();
-            $table->decimal('unit_cost', 10, 2)->default(0.00);
+            $table->dateTime('acquired_at');
+            $table->string('estimated_life')->nullable();
+            $table->decimal('unit_cost', 15, 2);
+            $table->integer('quantity');
+            $table->decimal('amount', 15, 2);
+            $table->foreignId('category_id')->constrained('categories', 'categoryID');
+            $table->string('fund_code');
+            $table->string('ppesubacc');
+            $table->string('gl_code');
+            $table->foreignId('added_by')->constrained('users');
             $table->timestamps();
             $table->softDeletes();
         });

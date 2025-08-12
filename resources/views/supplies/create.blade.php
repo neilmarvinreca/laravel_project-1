@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Create Supply')
-
+<link href="{{ asset('dist/images/logodssc.png') }}" rel="shortcut icon">
 @section('content')
 <div class="intro-y flex flex-col sm:flex-row items-center mt-8">
     <h2 class="text-lg font-medium mr-auto">Create New Supply</h2>
@@ -12,30 +12,54 @@
     </div>
 </div>
 
-<!-- BEGIN: Create Supply Form -->
 <div class="intro-y box p-5 mt-5">
+    @if($errors->any())
+        <div class="alert alert-danger mb-4">
+            <div class="flex items-center">
+                <div class="mr-3">
+                    <i data-lucide="alert-triangle" class="w-6 h-6 text-red-500"></i>
+                </div>
+                <div>
+                    <h4 class="font-medium">There {{ $errors->count() === 1 ? 'is' : 'are' }} {{ $errors->count() }} {{ Str::plural('error', $errors->count()) }} with your submission</h4>
+                    <ul class="mt-2 list-disc list-inside text-red-600">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <form method="POST" action="{{ route('supplies.store') }}" class="grid grid-cols-12 gap-6">
         @csrf
+        <input type="hidden" name="added_by" value="{{ auth()->id() }}">
         
-        <div class="col-span-12 xl:col-span-6">
+        <!-- Item Name -->
+        <div class="col-span-12 sm:col-span-6">
             <div class="input-form">
-                <label for="name" class="form-label">Name <span class="text-danger">*</span></label>
-                <input type="text" id="name" name="name" class="form-control w-full @error('name') border-danger @enderror" 
-                    value="{{ old('name') }}" required>
+                <label for="name" class="form-label">Item Name <span class="text-danger">*</span></label>
+                <input type="text" id="name" name="name" 
+                       class="form-control w-full @error('name') border-danger @enderror" 
+                       value="{{ old('name') }}" 
+                       required>
                 @error('name')
                     <div class="text-danger mt-2">{{ $message }}</div>
                 @enderror
             </div>
         </div>
 
-        <div class="col-span-12 xl:col-span-6">
+        <!-- Category -->
+        <div class="col-span-12 sm:col-span-6">
             <div class="input-form">
                 <label for="category_id" class="form-label">Category <span class="text-danger">*</span></label>
-                <select id="category_id" name="category_id" class="form-select w-full @error('category_id') border-danger @enderror" required>
-                    <option value="">Select Category</option>
+                <select id="category_id" name="category_id" 
+                        class="form-select w-full @error('category_id') border-danger @enderror" 
+                        required>
+                    <option value="" disabled selected>Select Category</option>
                     @foreach($categories as $category)
-                        <option value="{{ $category->id }}" {{ old('category_id') == $category->id ? 'selected' : '' }}>
-                            {{ $category->name }}
+                        <option value="{{ $category->categoryID }}" {{ old('category_id') == $category->categoryID ? 'selected' : '' }}>
+                            {{ $category->categoryName }}
                         </option>
                     @endforeach
                 </select>
@@ -45,99 +69,204 @@
             </div>
         </div>
 
-        <div class="col-span-12 xl:col-span-6">
-            <div class="input-form">
-                <label for="quantity" class="form-label">Quantity <span class="text-danger">*</span></label>
-                <input type="number" id="quantity" name="quantity" class="form-control w-full @error('quantity') border-danger @enderror" 
-                    value="{{ old('quantity') }}" required min="0">
-                @error('quantity')
-                    <div class="text-danger mt-2">{{ $message }}</div>
-                @enderror
-            </div>
-        </div>
-
-        <div class="col-span-12 xl:col-span-6">
-            <div class="input-form">
-                <label for="unit" class="form-label">Unit <span class="text-danger">*</span></label>
-                <input type="text" id="unit" name="unit" class="form-control w-full @error('unit') border-danger @enderror" 
-                    value="{{ old('unit') }}" required>
-                @error('unit')
-                    <div class="text-danger mt-2">{{ $message }}</div>
-                @enderror
-            </div>
-        </div>
-
-        <div class="col-span-12 xl:col-span-6">
-            <div class="input-form">
-                <label for="minimum_stock" class="form-label">Minimum Stock <span class="text-danger">*</span></label>
-                <input type="number" id="minimum_stock" name="minimum_stock" class="form-control w-full @error('minimum_stock') border-danger @enderror" 
-                    value="{{ old('minimum_stock') }}" required min="0">
-                @error('minimum_stock')
-                    <div class="text-danger mt-2">{{ $message }}</div>
-                @enderror
-            </div>
-        </div>
-
-        <div class="col-span-12 xl:col-span-6">
-            <div class="input-form">
-                <label for="unit_cost" class="form-label">Unit Cost <span class="text-danger">*</span></label>
-                <input type="number" id="unit_cost" name="unit_cost" class="form-control w-full @error('unit_cost') border-danger @enderror" 
-                    value="{{ old('unit_cost') }}" required min="0" step="0.01">
-                @error('unit_cost')
-                    <div class="text-danger mt-2">{{ $message }}</div>
-                @enderror
-            </div>
-        </div>
-
-        <div class="col-span-12 xl:col-span-6">
-            <div class="input-form">
-                <label for="location" class="form-label">Location</label>
-                <input type="text" id="location" name="location" class="form-control w-full @error('location') border-danger @enderror" 
-                    value="{{ old('location') }}">
-                @error('location')
-                    <div class="text-danger mt-2">{{ $message }}</div>
-                @enderror
-            </div>
-        </div>
-
-        <div class="col-span-12 xl:col-span-6">
-            <div class="input-form">
-                <label for="supplier" class="form-label">Supplier</label>
-                <input type="text" id="supplier" name="supplier" class="form-control w-full @error('supplier') border-danger @enderror" 
-                    value="{{ old('supplier') }}">
-                @error('supplier')
-                    <div class="text-danger mt-2">{{ $message }}</div>
-                @enderror
-            </div>
-        </div>
-
-        <div class="col-span-12 xl:col-span-12">
-            <div class="input-form">
-                <label for="supplier_contact" class="form-label">Supplier Contact</label>
-                <input type="text" id="supplier_contact" name="supplier_contact" class="form-control w-full @error('supplier_contact') border-danger @enderror" 
-                    value="{{ old('supplier_contact') }}">
-                @error('supplier_contact')
-                    <div class="text-danger mt-2">{{ $message }}</div>
-                @enderror
-            </div>
-        </div>
-
-        <div class="col-span-12 xl:col-span-12">
+        <!-- Description -->
+        <div class="col-span-12">
             <div class="input-form">
                 <label for="description" class="form-label">Description</label>
-                <textarea id="description" name="description" class="form-control w-full @error('description') border-danger @enderror" 
-                    rows="4">{{ old('description') }}</textarea>
+                <textarea id="description" name="description" 
+                          class="form-control w-full @error('description') border-danger @enderror" 
+                          rows="3">{{ old('description') }}</textarea>
                 @error('description')
                     <div class="text-danger mt-2">{{ $message }}</div>
                 @enderror
             </div>
         </div>
 
+        <!-- Date Acquired -->
+        <div class="col-span-12 sm:col-span-6">
+            <div class="input-form">
+                <label for="acquired_at" class="form-label">Date Acquired <span class="text-danger">*</span></label>
+                <input type="date" id="acquired_at" name="acquired_at" 
+                       class="form-control w-full @error('acquired_at') border-danger @enderror" 
+                       value="{{ old('acquired_at', now()->format('Y-m-d')) }}" 
+                       required>
+                @error('acquired_at')
+                    <div class="text-danger mt-2">{{ $message }}</div>
+                @enderror
+            </div>
+        </div>
+
+        <!-- Estimated Life -->
+        <div class="col-span-12 sm:col-span-6">
+            <div class="input-form">
+                <label for="estimated_life" class="form-label">Estimated Life</label>
+                <input type="text" id="estimated_life" name="estimated_life" 
+                       class="form-control w-full @error('estimated_life') border-danger @enderror" 
+                       value="{{ old('estimated_life') }}">
+                @error('estimated_life')
+                    <div class="text-danger mt-2">{{ $message }}</div>
+                @enderror
+            </div>
+        </div>
+
+        <!-- Unit Cost -->
+        <div class="col-span-12 sm:col-span-6">
+            <div class="input-form">
+                <label for="unit_cost" class="form-label">Unit Cost <span class="text-danger">*</span></label>
+                <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₱</span>
+                    <input type="number" id="unit_cost" name="unit_cost" 
+                           class="form-control w-full pl-8 @error('unit_cost') border-danger @enderror" 
+                           value="{{ old('unit_cost') }}" 
+                           min="0" 
+                           step="0.01" 
+                           required>
+                </div>
+                @error('unit_cost')
+                    <div class="text-danger mt-2">{{ $message }}</div>
+                @enderror
+            </div>
+        </div>
+
+        <!-- Quantity -->
+        <div class="col-span-12 sm:col-span-6">
+            <div class="input-form">
+                <label for="quantity" class="form-label">Quantity <span class="text-danger">*</span></label>
+                <input type="number" id="quantity" name="quantity" 
+                       class="form-control w-full @error('quantity') border-danger @enderror" 
+                       value="{{ old('quantity', 1) }}" 
+                       min="1" 
+                       required>
+                @error('quantity')
+                    <div class="text-danger mt-2">{{ $message }}</div>
+                @enderror
+            </div>
+        </div>
+
+        
+
+        <!-- Fund Code -->
+        <div class="col-span-12 sm:col-span-6">
+            <div class="input-form">
+                <label for="fund_code" class="form-label">Fund Code <span class="text-danger">*</span></label>
+                <input type="text" id="fund_code" name="fund_code" 
+                       class="form-control w-full @error('fund_code') border-danger @enderror" 
+                       value="{{ old('fund_code') }}" 
+                       required>
+                @error('fund_code')
+                    <div class="text-danger mt-2">{{ $message }}</div>
+                @enderror
+            </div>
+        </div>
+
+        <!-- PPE Sub Account -->
+        <div class="col-span-12 sm:col-span-6">
+            <div class="input-form">
+                <label for="pp_sub_account" class="form-label">PPE Sub Account <span class="text-danger">*</span></label>
+                <input type="text" id="pp_sub_account" name="pp_sub_account" 
+                       class="form-control w-full @error('pp_sub_account') border-danger @enderror" 
+                       value="{{ old('pp_sub_account') }}" 
+                       required>
+                @error('pp_sub_account')
+                    <div class="text-danger mt-2">{{ $message }}</div>
+                @enderror
+            </div>
+        </div>
+
+        <!-- GL Code -->
+        <div class="col-span-12 sm:col-span-6">
+            <div class="input-form">
+                <label for="gl_code" class="form-label">GL Code <span class="text-danger">*</span></label>
+                <input type="text" id="gl_code" name="gl_code" 
+                       class="form-control w-full @error('gl_code') border-danger @enderror" 
+                       value="{{ old('gl_code') }}" 
+                       required>
+                @error('gl_code')
+                    <div class="text-danger mt-2">{{ $message }}</div>
+                @enderror
+            </div>
+        </div>
+
+        <!-- Total Amount -->
+        <div class="col-span-12 sm:col-span-6">
+            <div class="input-form">
+                <label for="amount" class="form-label">Total Amount <span class="text-danger">*</span></label>
+                <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₱</span>
+                    <input type="number" id="amount" name="amount" 
+                           class="form-control w-full pl-8 @error('amount') border-danger @enderror" 
+                           value="{{ old('amount') }}" 
+                           min="0" 
+                           step="0.01" 
+                           required>
+                </div>
+                @error('amount')
+                    <div class="text-danger mt-2">{{ $message }}</div>
+                @enderror
+            </div>
+        </div>
+
+
+
         <div class="col-span-12 flex items-center justify-center sm:justify-end mt-5">
-            <button type="submit" class="btn btn-primary w-24 mr-2">Save</button>
-            <button type="reset" class="btn btn-secondary w-24">Reset</button>
+        <button type="submit" class="btn btn-primary w-24 mr-2">
+                <i data-lucide="save" class="w-4 h-4 mr-2"></i> Save
+            </button>
+            <button type="reset" class="btn btn-secondary w-24">
+                <i data-lucide="refresh-ccw" class="w-4 h-4 mr-2"></i> Reset
+            </button>
         </div>
     </form>
 </div>
 <!-- END: Create Supply Form -->
 @endsection
+
+@push('scripts')
+<script>
+function confirmDeleteTransaction(id, form) {
+    Swal.fire({
+        title: 'Are you sure?',
+        text: `You are about to delete transaction #${id}. This action cannot be undone.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, delete it!',
+        cancelButtonText: 'Cancel',
+        reverseButtons: true,
+        customClass: {
+            confirmButton: 'btn btn-danger',
+            cancelButton: 'btn btn-secondary mr-2'
+        },
+        buttonsStyling: false
+    }).then((result) => {
+        if (result.isConfirmed) {
+            form.submit();
+        }
+    });
+}
+
+    // Function to calculate total amount
+    function calculateTotal() {
+        const unitCost = parseFloat(document.getElementById('unit_cost').value) || 0;
+        const quantity = parseInt(document.getElementById('quantity').value) || 0;
+        const totalAmount = (unitCost * quantity).toFixed(2);
+        document.getElementById('amount').value = totalAmount;
+    }
+
+    // Add event listeners for unit cost and quantity changes
+    document.addEventListener('DOMContentLoaded', function() {
+        const unitCostInput = document.getElementById('unit_cost');
+        const quantityInput = document.getElementById('quantity');
+        
+        if (unitCostInput) {
+            unitCostInput.addEventListener('input', calculateTotal);
+        }
+        
+        if (quantityInput) {
+            quantityInput.addEventListener('input', calculateTotal);
+        }
+        
+        // Calculate initial total if values exist
+        calculateTotal();
+    });
+</script>
+@endpush

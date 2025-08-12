@@ -1,0 +1,583 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\DeployedItem;
+use App\Models\Department;
+use App\Models\Supply;
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Spatie\Activitylog\Models\Activity;
+
+class DeployedItemController extends Controller
+{
+    /**
+     * Display a listing of the deployed items.
+     *
+     * @return \Illuminate\View\View
+     */
+    public function index(Request $request)
+    {
+        $search = $request->input('search');
+        
+        $deployedItems = DeployedItem::with(['department', 'supply', 'activities.causer'])
+            ->when($search, function($query) use ($search) {
+                return $query->whereHas('supply', function($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%");
+                });
+            })
+            ->latest()
+            ->paginate(10)
+            ->withQueryString();
+            
+        // Get summary statistics
+        $totalDeployed = DeployedItem::count();
+        $totalValue = DeployedItem::sum('cost');
+        $byDepartment = DeployedItem::selectRaw('department_id, count(*) as count, sum(cost) as total_value')
+            ->with('department')
+            ->groupBy('department_id')
+            ->get();
+            
+        $recentDeployments = DeployedItem::with(['department', 'supply'])
+            ->latest()
+            ->take(5)
+            ->get();
+            
+        return view('deployed_items.index', [
+            'deployedItems' => $deployedItems,
+            'totalDeployed' => $totalDeployed,
+            'totalValue' => $totalValue,
+            'byDepartment' => $byDepartment,
+            'recentDeployments' => $recentDeployments
+        ]);
+    }
+
+    /**
+     * Show the form for creating a new deployed item.
+     *
+     * @return \Illuminate\View\View
+     */
+    public function create()
+    {
+        $departments = Department::orderBy('officename')->get();
+        $supplies = Supply::orderBy('name')->get();
+        
+        // Get all users for approvers dropdown
+        $approvers = \App\Models\User::orderBy('name')
+            ->get(['id', 'name', 'email']);
+        
+        return view('deployed_items.create', [
+            'departments' => $departments,
+            'supplies' => $supplies,
+            'approvers' => $approvers
+        ]);
+    }
+
+    /**
+     * Store a newly created deployed item in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    /**
+     * Store a newly created deployed item in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    public function store(Request $request)
+    {
+        // Handle bulk deployment from supplies index
+        if ($request->has('items')) {
+            return $this->storeBulk($request);
+        }
+        
+        // If deploying from a supply (single item)
+        if ($request->filled('supply_id')) {
+            return $this->deploySingleItem($request);
+        }
+        
+        // Manual entry validation
+        $validated = $request->validate([
+            'deployedID' => 'required|string|unique:deployed_items,deployedID',
+            'itemName' => 'required|string|max:255',
+            'itemDescription' => 'nullable|string',
+            'dateAcquired' => 'required|date|before_or_equal:today',
+            'cost' => 'required|numeric|min:0',
+            'itemCategory' => 'required|string|max:255',
+            'qr_code' => 'required|string|max:255|unique:deployed_items,qr_code',
+            'departmentID' => 'required|exists:departments,departmentID',
+            'dateDeployed' => 'required|date',
+            'status' => 'required|in:active,inactive,under_maintenance,disposed',
+            'remarks' => 'nullable|string',
+        ], [
+            'departmentID.exists' => 'The selected department is invalid.',
+            'status.in' => 'The status must be one of: active, inactive, under maintenance, or disposed.',
+            'dateAcquired.before_or_equal' => 'The date acquired must be a date before or equal to today.',
+            'cost.min' => 'The cost must be a positive number.',
+            'qr_code.unique' => 'This QR code is already in use. Please generate a new one.',
+        ]);
+
+        // Start database transaction
+        return DB::transaction(function () use ($validated, $request) {
+            try {
+                // Set default values
+                $validated['deployed_by'] = Auth::id();
+                
+                // Ensure QR code is unique
+                if (empty($validated['qr_code'])) {
+                    $validated['qr_code'] = 'DEP-' . time() . '-' . strtoupper(Str::random(6));
+                }
+
+                // Create the deployed item
+                $deployedItem = DeployedItem::create($validated);
+
+                // Log the creation activity
+                activity()
+                    ->causedBy(Auth::user())
+                    ->performedOn($deployedItem)
+                    ->withProperties($validated)
+                    ->log('created');
+
+                // If this is an AJAX request, return JSON response
+                if ($request->wantsJson()) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Item deployed successfully!',
+                        'data' => $deployedItem->load('department')
+                    ], 201);
+                }
+
+                return redirect()
+                    ->route('deployed-items.show', $deployedItem)
+                    ->with('success', 'Item deployed successfully!');
+                    
+            } catch (\Exception $e) {
+                // Log the error for debugging
+                \Log::error('Error in DeployedItemController@store: ' . $e->getMessage());
+                \Log::error($e->getTraceAsString());
+                
+                // If this is an AJAX request, return JSON error
+                if ($request->wantsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Failed to deploy item. Please try again.',
+                        'error' => config('app.debug') ? $e->getMessage() : null
+                    ], 500);
+                }
+                
+                return back()
+                    ->withInput()
+                    ->with('error', 'Failed to deploy item. Please try again.');
+            }
+        });
+    }
+    
+    /**
+     * Handle bulk deployment of multiple items
+     */
+    protected function storeBulk(Request $request)
+    {
+        $request->validate([
+            'department_id' => 'required|exists:departments,id',
+            'deployed_date' => 'required|date|before_or_equal:today',
+            'items' => 'required|array|min:1',
+            'items.*.supply_id' => 'required|exists:supplies,id',
+            'items.*.quantity' => 'required|integer|min:1',
+            'notes' => 'nullable|string',
+        ]);
+        
+        $department = Department::findOrFail($request->department_id);
+        $deployedItems = [];
+        
+        // Start database transaction
+        \DB::beginTransaction();
+        
+        try {
+            foreach ($request->items as $item) {
+                $supply = Supply::findOrFail($item['supply_id']);
+                
+                // Validate available quantity
+                if ($supply->quantity < $item['quantity']) {
+                    throw new \Exception("Not enough quantity available for {$supply->name}. Available: {$supply->quantity}, Requested: {$item['quantity']}");
+                }
+                
+                // Create deployed item
+                $deployedItem = DeployedItem::create([
+                    'deployedID' => 'DP-' . strtoupper(Str::random(8)),
+                    'itemName' => $supply->name,
+                    'itemDescription' => $supply->description,
+                    'dateAcquired' => now(),
+                    'dateDeployed' => $request->deployed_date,
+                    'cost' => $supply->unit_cost * $item['quantity'],
+                    'status' => 'active',
+                    'department_id' => $department->id,
+                    'departmentID' => $department->departmentID,
+                    'quantity' => $item['quantity'],
+                    'supply_id' => $supply->id,
+                    'itemCategory' => $supply->category->name ?? 'Uncategorized',
+                    'qr_code' => 'DP-' . strtoupper(Str::random(10)),
+                ]);
+                
+                // Update supply quantity
+                $supply->decrement('quantity', $item['quantity']);
+                
+                // Log the deployment
+                activity()
+                    ->causedBy(auth()->user())
+                    ->performedOn($deployedItem)
+                    ->withProperties([
+                        'supply_id' => $supply->id,
+                        'quantity' => $item['quantity'],
+                        'department_id' => $department->id,
+
+                    ])
+                    ->log('Deployed from bulk supply');
+                
+                $deployedItems[] = $deployedItem;
+            }
+            
+            // Commit transaction if all items processed successfully
+            \DB::commit();
+            
+            return response()->json([
+                'success' => true,
+                'message' => count($deployedItems) . ' items deployed successfully!',
+                'redirect' => route('deployed-items.index')
+            ]);
+            
+        } catch (\Exception $e) {
+            // Rollback transaction on error
+            \DB::rollBack();
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to deploy items: ' . $e->getMessage()
+            ], 422);
+        }
+    }
+    
+    /**
+     * Handle single item deployment from supply
+     */
+    protected function deploySingleItem(Request $request)
+    {
+        $supply = Supply::where('itemID', $request->supply_id)->firstOrFail();
+        
+        // Validate available quantity
+        if ($supply->quantity < $request->quantity) {
+            return back()->with('error', 'Not enough quantity available in stock.');
+        }
+        
+        // Build attributes using available column names (supports camelCase or snake_case)
+        $table = 'deployed_items';
+        $attrs = [];
+        $attrs[Schema::hasColumn($table, 'itemName') ? 'itemName' : (Schema::hasColumn($table, 'item_name') ? 'item_name' : 'itemName')] = $supply->name;
+        $attrs[Schema::hasColumn($table, 'itemDescription') ? 'itemDescription' : (Schema::hasColumn($table, 'item_description') ? 'item_description' : 'itemDescription')] = $supply->description;
+        $attrs[Schema::hasColumn($table, 'dateAcquired') ? 'dateAcquired' : (Schema::hasColumn($table, 'date_acquired') ? 'date_acquired' : 'dateAcquired')] = now();
+        $attrs[Schema::hasColumn($table, 'dateDeployed') ? 'dateDeployed' : (Schema::hasColumn($table, 'date_deployed') ? 'date_deployed' : 'dateDeployed')] = now();
+        $attrs['cost'] = $supply->unit_cost * $request->quantity;
+        $attrs[Schema::hasColumn($table, 'itemCategory') ? 'itemCategory' : (Schema::hasColumn($table, 'item_category') ? 'item_category' : 'itemCategory')] = $supply->category ? ($supply->category->categoryName ?? $supply->category->name) : 'Uncategorized';
+        $attrs['status'] = 'active';
+        // Department column name may be departmentID or department_id
+        $deptColumn = Schema::hasColumn($table, 'departmentID') ? 'departmentID' : (Schema::hasColumn($table, 'department_id') ? 'department_id' : 'departmentID');
+        $attrs[$deptColumn] = $request->departmentID;
+        if (Schema::hasColumn($table, 'purpose')) {
+            $attrs['purpose'] = $request->purpose;
+        }
+        if (Schema::hasColumn($table, 'quantity')) {
+            $attrs['quantity'] = $request->quantity;
+        }
+        if (Schema::hasColumn($table, 'condition')) {
+            $attrs['condition'] = 'new';
+        }
+        if (Schema::hasColumn($table, 'supply_id')) {
+            $attrs['supply_id'] = $supply->itemID;
+        }
+        if (Schema::hasColumn($table, 'deployed_by')) {
+            $attrs['deployed_by'] = auth()->id();
+        }
+        // QR code column might be qr_code or qrCode
+        $qrColumn = Schema::hasColumn($table, 'qr_code') ? 'qr_code' : (Schema::hasColumn($table, 'qrCode') ? 'qrCode' : 'qr_code');
+        $attrs[$qrColumn] = 'DP-' . strtoupper(Str::random(10));
+        if (Schema::hasColumn($table, 'remarks')) {
+            $attrs['remarks'] = 'Deployed from supply #' . $supply->itemID;
+        }
+
+        $deployedItem = DeployedItem::create($attrs);
+        
+        // Update the supply quantity
+        $supply->decrement('quantity', $request->quantity);
+        
+        // Log the deployment
+        activity()
+            ->causedBy(auth()->user())
+            ->performedOn($deployedItem)
+            ->withProperties([
+                'supply_id' => $supply->itemID,
+                'quantity' => $request->quantity,
+                'departmentID' => $request->departmentID
+            ])
+            ->log('Deployed from supply');
+            
+        return redirect()->route('deployed-items.index')
+            ->with('success', 'Item deployed successfully!');
+    }
+
+    /**
+     * Display the specified deployed item.
+     *
+     * @param  \App\Models\DeployedItem  $deployedItem
+     * @return \Illuminate\View\View
+     */
+    public function show(DeployedItem $deployedItem)
+    {
+        $deployedItem->load([
+            'department',
+            'activities' => function ($query) {
+                return $query->latest();
+            },
+            'activities.causer'
+        ]);
+        
+        return view('deployed_items.show', compact('deployedItem'));
+    }
+
+    /**
+     * Show the form for editing the specified deployed item.
+     *
+     * @param  \App\Models\DeployedItem  $deployedItem
+     * @return \Illuminate\View\View
+     */
+    public function edit(DeployedItem $deployedItem)
+    {
+        $departments = Department::orderBy('officename')->get();
+        
+        return view('deployed_items.edit', [
+            'deployedItem' => $deployedItem,
+            'departments' => $departments,
+        ]);
+    }
+
+    /**
+     * Update the specified deployed item in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \App\Models\DeployedItem  $deployedItem
+     * @return \Illuminate\Http\Response
+     */
+    public function update(Request $request, DeployedItem $deployedItem)
+    {
+        $validated = $request->validate([
+            'itemName' => 'required|string|max:255',
+            'itemDescription' => 'nullable|string',
+            'dateAcquired' => 'required|date|before_or_equal:today',
+            'cost' => 'required|numeric|min:0',
+            'quantity' => 'required|integer|min:1',
+            'itemCategory' => 'required|string|max:255',
+            'qr_code' => 'required|string|max:255|unique:deployed_items,qr_code,' . $deployedItem->deployedID . ',deployedID',
+            'departmentID' => 'required|exists:departments,departmentID',
+            'dateDeployed' => 'required|date',
+            'status' => 'required|in:active,inactive,maintenance,retired',
+            'remarks' => 'nullable|string',
+            'condition' => 'required|in:new,good,fair,poor',
+            'purpose' => 'nullable|string',
+        ]);
+
+        try {
+            // Store old values for activity log
+            $oldValues = $deployedItem->getOriginal();
+            
+            // Update the deployed item
+            $deployedItem->update($validated);
+            
+            // Log the update activity with changed values
+            activity()
+                ->causedBy(Auth::user())
+                ->performedOn($deployedItem)
+                ->withProperties([
+                    'old' => $oldValues,
+                    'attributes' => $validated
+                ])
+                ->log('updated');
+
+            return redirect()
+                ->route('deployed-items.show', $deployedItem)
+                ->with('success', 'Item updated successfully!');
+                
+        } catch (\Exception $e) {
+            return back()
+                ->withInput()
+                ->with('error', 'Failed to update item: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Remove the specified deployed item from storage.
+     * Note: This is included for completeness but should be used with caution
+     * as it affects the audit trail. Consider using soft deletes instead.
+     *
+     * @param  \App\Models\DeployedItem  $deployedItem
+     * @return \Illuminate\Http\Response
+     */
+    public function destroy(DeployedItem $deployedItem)
+    {
+        try {
+            // Log the deletion activity
+            activity()
+                ->causedBy(Auth::user())
+                ->performedOn($deployedItem)
+                ->log('deleted');
+                
+            $deployedItem->delete();
+            
+            return redirect()
+                ->route('deployed-items.index')
+                ->with('success', 'Item archived successfully! It can be restored from the archived items list.');
+                
+        } catch (\Exception $e) {
+            return back()
+                ->with('error', 'Failed to archive item: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Archive the specified deployed item.
+     *
+     * @param  string  $id  The deployedID of the item to archive
+     * @return \Illuminate\Http\Response
+     */
+    public function archive($id)
+    {
+        $deployedItem = DeployedItem::where('deployedID', $id)->firstOrFail();
+        
+        // Check if the item is already archived
+        if ($deployedItem->trashed()) {
+            return redirect()->route('deployed-items.index')
+                ->with('error', 'Item is already archived.');
+        }
+        
+        try {
+            $deployedItem->delete();
+            
+            return redirect()->route('deployed-items.index')
+                ->with('success', 'Item has been archived successfully.');
+                
+        } catch (\Exception $e) {
+            \Log::error('Error archiving deployed item', [
+                'id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return back()->with('error', 'Failed to archive item. Please try again.');
+        }
+    }
+
+    /**
+     * Display a listing of archived deployed items.
+     *
+     * @return \Illuminate\View\View
+     */
+    public function archived()
+    {
+        \Log::info('Accessing archived items', [
+            'user_id' => auth()->id(),
+            'authenticated' => auth()->check(),
+            'url' => request()->fullUrl()
+        ]);
+
+        try {
+            $deployedItems = DeployedItem::onlyTrashed()
+                ->with(['department', 'supply'])
+                ->latest('deleted_at')
+                ->paginate(10);
+                
+            \Log::info('Archived items query results', [
+                'count' => $deployedItems->total(),
+                'items' => $deployedItems->pluck('id')
+            ]);
+                
+            return view('deployed_items.archived', compact('deployedItems'));
+            
+        } catch (\Exception $e) {
+            \Log::error('Error in archived method', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            throw $e; // Re-throw to see the error in the browser
+        }
+    }
+
+    /**
+     * Restore the specified archived deployed item.
+     *
+     * @param  \App\Models\DeployedItem  $deployed_item
+     * @return \Illuminate\Http\Response
+     */
+    public function restore($deployedID)
+    {
+        $deployedItem = DeployedItem::withTrashed()->where('deployedID', $deployedID)->firstOrFail();
+        
+        if (!$deployedItem->trashed()) {
+            return redirect()->route('deployed-items.archived')
+                ->with('error', 'Item is not in the trash.');
+        }
+        
+        try {
+            $deployedItem->restore();
+            
+            // Log the restoration activity
+            activity()
+                ->causedBy(Auth::user())
+                ->performedOn($deployedItem)
+                ->log('restored');
+            
+            return redirect()
+                ->route('deployed-items.archived')
+                ->with('success', 'Item restored successfully!');
+                
+        } catch (\Exception $e) {
+            return back()
+                ->with('error', 'Failed to restore item: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Permanently delete the specified archived deployed item.
+     *
+     * @param  \App\Models\DeployedItem  $deployed_item
+     * @return \Illuminate\Http\Response
+     */
+    public function forceDelete($deployedID)
+    {
+        $deployedItem = DeployedItem::withTrashed()->where('deployedID', $deployedID)->firstOrFail();
+        
+        if (!$deployedItem->trashed()) {
+            return redirect()->route('deployed-items.archived')
+                ->with('error', 'Item is not in the trash.');
+        }
+        
+        try {
+            // Log the permanent deletion activity
+            activity()
+                ->causedBy(Auth::user())
+                ->performedOn($deployedItem)
+                ->log('permanently deleted');
+                
+            $deployedItem->forceDelete();
+            
+            return redirect()
+                ->route('deployed-items.archived')
+                ->with('success', 'Item permanently deleted successfully!');
+                
+        } catch (\Exception $e) {
+            return back()
+                ->with('error', 'Failed to permanently delete item: ' . $e->getMessage());
+        }
+    }
+}

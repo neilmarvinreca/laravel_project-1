@@ -19,7 +19,7 @@
                 <form method="post" action="{{ route('profile.update') }}" class="grid grid-cols-12 gap-5">
                     @csrf
                     @method('patch')
-                    
+
                     <div class="col-span-12 xl:col-span-6">
                         <div class="input-form">
                             <label for="name" class="form-label">Name</label>

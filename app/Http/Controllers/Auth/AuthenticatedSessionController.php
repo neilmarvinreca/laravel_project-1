@@ -22,6 +22,11 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        // Persist the authenticated user's role in the session and ignore any posted role value
+        if (\Illuminate\Support\Facades\Auth::check()) {
+            $request->session()->put('role', \Illuminate\Support\Facades\Auth::user()->role);
+        }
+
         return redirect()->intended(route('dashboard'));
     }
 

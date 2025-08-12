@@ -2,8 +2,9 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="light">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
     <title>@yield('title', config('app.name', 'Laravel'))</title>
 
@@ -11,89 +12,105 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-    <!-- Icewall Template CSS -->
-    <link rel="stylesheet" href="{{ asset('dist/css/app.css') }}" />
+    
+    <!-- Application Styles -->
+    <link rel="stylesheet" href="{{ asset('dist/css/app.css') }}">
 
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
 
     @stack('styles')
 </head>
-<body>
-    <!-- BEGIN: Mobile Menu -->
+<body class="antialiased">
+    <!-- Mobile Menu -->
     <div class="mobile-menu md:hidden">
         <div class="mobile-menu-bar">
-            <a href="" class="flex mr-auto">
-                <span class="text-white text-lg ml-3">Menu</span>
+            <a href="{{ route('dashboard') }}" class="flex items-center">
+                <span class="text-white text-lg ml-3">{{ config('app.name', 'Laravel') }}</span>
             </a>
-            <a href="javascript:;" class="mobile-menu-toggler">
-                <i data-lucide="bar-chart-2" class="w-8 h-8 text-white transform -rotate-90"></i>
-            </a>
+            <button type="button" class="mobile-menu-toggler" aria-label="Toggle menu">
+                <i data-lucide="menu" class="w-8 h-8 text-white"></i>
+            </button>
         </div>
     </div>
-    <!-- END: Mobile Menu -->
 
-    <!-- BEGIN: Top Bar -->
-    @include('layouts.top-bar')
-    <!-- END: Top Bar -->
+    <!-- Top Navigation -->
+    @includeWhen(View::exists('layouts.top-bar'), 'layouts.top-bar')
 
-    <!-- BEGIN: Main Layout -->
-    <div class="flex">
-        <!-- BEGIN: Side Menu -->
-        @include('layouts.sidebar')
-        <!-- END: Side Menu -->
+    <!-- Main Layout -->
+    <div class="flex min-h-screen">
+        <!-- Sidebar -->
+        @includeWhen(View::exists('layouts.sidebar'), 'layouts.sidebar')
 
-        <!-- BEGIN: Content -->
-        <div class="content">
-            @if(session('success'))
-                <div class="alert alert-success alert-dismissible show flex items-center mb-2" role="alert">
-                    <i data-lucide="check-circle" class="w-6 h-6 mr-2"></i> 
-                    {{ session('success') }}
-                    <button type="button" class="btn-close" data-tw-dismiss="alert" aria-label="Close">
-                        <i data-lucide="x" class="w-4 h-4"></i>
-                    </button>
+        <!-- Page Content -->
+        <main class="content flex-1 overflow-x-hidden overflow-y-auto">
+            <!-- Session Messages -->
+            @foreach (['success', 'error', 'warning', 'info'] as $msg)
+                @if (session()->has($msg))
+                    <div class="alert alert-{{ $msg === 'error' ? 'danger' : $msg }} alert-dismissible show flex items-center mb-4" role="alert">
+                        @php
+                            $icons = [
+                                'success' => 'check-circle',
+                                'error' => 'alert-octagon',
+                                'warning' => 'alert-triangle',
+                                'info' => 'info'
+                            ];
+                        @endphp
+                        <i data-lucide="{{ $icons[$msg] ?? 'info' }}" class="w-6 h-6 mr-2"></i>
+                        {{ session($msg) }}
+                        <button type="button" class="btn-close" data-tw-dismiss="alert" aria-label="Close">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                @endif
+            @endforeach
+
+            @hasSection('content')
+                @yield('content')
+            @else
+                <div class="p-4">
+                    @yield('body')
                 </div>
             @endif
-
-            @if(session('error'))
-                <div class="alert alert-danger alert-dismissible show flex items-center mb-2" role="alert">
-                    <i data-lucide="alert-octagon" class="w-6 h-6 mr-2"></i> 
-                    {{ session('error') }}
-                    <button type="button" class="btn-close" data-tw-dismiss="alert" aria-label="Close">
-                        <i data-lucide="x" class="w-4 h-4"></i>
-                    </button>
-                </div>
-            @endif
-
-            @yield('content')
-        </div>
-        <!-- END: Content -->
+        </main>
     </div>
 
-    <!-- BEGIN: JS Assets-->
+    <!-- Application JavaScript -->
     <script src="{{ asset('dist/js/app.js') }}"></script>
-    <!-- END: JS Assets-->
 
     <script>
-        // Initialize Lucide icons
-        lucide.createIcons();
-
-        // Initialize all modals
         document.addEventListener('DOMContentLoaded', function() {
-            const modals = document.querySelectorAll('.modal');
-            modals.forEach(function(el) {
-                const modal = tailwind.Modal.getOrCreateInstance(el);
+            // Initialize Lucide icons
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+
+            // Initialize modals
+            document.querySelectorAll('.modal').forEach(modal => {
+                if (typeof tailwind !== 'undefined') {
+                    tailwind.Modal.getOrCreateInstance(modal);
+                }
             });
 
             // Mobile menu toggle
             const mobileMenuToggler = document.querySelector('.mobile-menu-toggler');
             if (mobileMenuToggler) {
-                mobileMenuToggler.addEventListener('click', function() {
-                    const sideNav = document.querySelector('.side-nav');
-                    sideNav.classList.toggle('active');
+                mobileMenuToggler.addEventListener('click', () => {
+                    document.querySelector('.side-nav')?.classList.toggle('active');
                 });
             }
+
+            // Auto-dismiss alerts after 5 seconds
+            setTimeout(() => {
+                document.querySelectorAll('.alert').forEach(alert => {
+                    const closeBtn = alert.querySelector('[data-tw-dismiss="alert"]');
+                    if (closeBtn) closeBtn.click();
+                });
+            }, 5000);
         });
     </script>
 

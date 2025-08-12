@@ -18,6 +18,7 @@ License: You must have a valid license purchased only from themeforest(the above
         <meta name="keywords" content="dssc, inventory, management, system">
         <meta name="author" content="DSSC">
         <title>Register - DSSC Inventory Management System</title>
+        <link href="{{ asset('dist/images/logodssc.png') }}" rel="shortcut icon">
         <!-- BEGIN: CSS Assets-->
         <link rel="stylesheet" href="dist/css/app.css" />
         <!-- Add Font Awesome for password toggle icon -->
@@ -44,7 +45,7 @@ License: You must have a valid license purchased only from themeforest(the above
                 <!-- BEGIN: Register Info -->
                 <div class="hidden xl:flex flex-col min-h-screen">
                     <a href="https://dssc.edu.ph/" class="-intro-x flex items-center pt-5" target="_blank" rel="noopener noreferrer">
-                        <img alt="DSSC Logo" height="300" width="300" src="http://studentportal.dssc.edu.ph:4455/uploads/settings/1_theG1690183835.gif">
+                        <img alt="DSSC Logo" height="300" width="300" src="http://202.137.126.204:4455/uploads/settings/1_theG1690183835.gif">
                     </a>
                     <div class="my-auto">
                         <img alt="Inventory System" class="-intro-x w-1/2 -mt-16" src="dist/images/bg.png">
@@ -66,6 +67,20 @@ License: You must have a valid license purchased only from themeforest(the above
                         <form method="POST" action="{{ route('register') }}">
     @csrf
 
+                <div class="mt-4">
+                        <select name="role" required
+                            class="intro-x login__input form-control py-3 px-4 block w-full @error('role') border-red-500 @enderror">
+                            <option value="" disabled {{ old('role') ? '' : 'selected' }}>Select Role</option>
+                            <option value="Inventory Manager" {{ old('role') == 'Inventory Manager' ? 'selected' : '' }}>Inventory Manager</option>
+                            <option value="Inspector" {{ old('role') == 'Inspector' ? 'selected' : '' }}>Inspector</option>
+                            <option value="Department User" {{ old('role') == 'Department User' ? 'selected' : '' }}>Department User</option>
+                        </select>
+                        @error('role')
+                            <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+    
     @if ($errors->any())
     <div class="intro-x mt-4">
         <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
@@ -93,6 +108,7 @@ License: You must have a valid license purchased only from themeforest(the above
             <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
         @enderror
 
+        
         <div class="password-container mt-4">
             <input type="password" name="password" required 
                 class="intro-x login__input form-control py-3 px-4 block w-full @error('password') border-red-500 @enderror" 

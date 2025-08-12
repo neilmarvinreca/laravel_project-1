@@ -29,7 +29,7 @@ License: You must have a valid license purchased only from themeforest(the above
                 <!-- BEGIN: Login Info -->
                 <div class="hidden xl:flex flex-col min-h-screen">
                     <a href="https://dssc.edu.ph/" class="-intro-x flex items-center pt-5" target="_blank" rel="noopener noreferrer">
-                        <img alt="DSSC Logo" height="300" width="300" src="http://studentportal.dssc.edu.ph:4455/uploads/settings/1_theG1690183835.gif">
+                        <img alt="DSSC Logo" height="300" width="300" src="http://202.137.126.204:4455/uploads/settings/1_theG1690183835.gif">
                     </a>
 
                     <div class="my-auto">
@@ -61,8 +61,23 @@ License: You must have a valid license purchased only from themeforest(the above
                             </div>
                         @endif
 
+                        
                         <form method="POST" action="{{ route('login') }}">
                             @csrf
+
+                            {{-- Role Selection placed below Sign In --}}
+                            <div class="intro-x mt-6">
+                                <select name="role" required class="intro-x login__input form-control py-3 px-4 block @error('role') is-invalid @enderror">
+                                    <option value="">Select Role</option>
+                                    <option value="Super Admin">Super Admin</option>
+                                    <option value="Inventory Manager">Inventory Manager</option>
+                                    <option value="Inspector">Inspector</option>
+                                    <option value="Department User">Department User</option>
+                                </select>
+                                @error('role')
+                                    <div class="invalid-feedback mt-1 text-danger">{{ $message }}</div>
+                                @enderror
+                            </div>
 
                             <div class="intro-x mt-8">
                                 {{-- Email Field --}}

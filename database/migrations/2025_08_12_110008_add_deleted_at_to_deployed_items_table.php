@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('supplies', function (Blueprint $table) {
-            $table->timestamp('last_restock_date')->nullable()->after('unit_cost');
+        Schema::table('deployed_items', function (Blueprint $table) {
+            $table->softDeletes();
         });
     }
 
@@ -21,8 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('supplies', function (Blueprint $table) {
-            $table->dropColumn('last_restock_date');
+        Schema::table('deployed_items', function (Blueprint $table) {
+            //
         });
     }
-}; 
+};

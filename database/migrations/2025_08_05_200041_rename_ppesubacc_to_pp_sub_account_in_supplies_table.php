@@ -12,9 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('supplies', function (Blueprint $table) {
-            $table->string('location')->nullable()->after('unit_cost');
-            $table->string('supplier')->nullable()->after('location');
-            $table->string('supplier_contact')->nullable()->after('supplier');
+            $table->renameColumn('ppesubacc', 'pp_sub_account');
         });
     }
 
@@ -24,7 +22,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('supplies', function (Blueprint $table) {
-            $table->dropColumn(['location', 'supplier', 'supplier_contact']);
+            $table->renameColumn('pp_sub_account', 'ppesubacc');
         });
     }
-}; 
+};
