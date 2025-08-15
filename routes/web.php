@@ -60,6 +60,18 @@ Route::middleware('auth')->group(function () {
     // Deployed Items Resource Route
     Route::resource('deployed-items', DeployedItemController::class);
     
+    // Test route for debugging QR code
+    Route::get('test-qr/{deployedItem}', function (\App\Models\DeployedItem $deployedItem) {
+        return response()->json([
+            'deployedID' => $deployedItem->deployedID,
+            'qrCode' => $deployedItem->qrCode,
+            'qr_code' => $deployedItem->qr_code,
+            'raw_qr_code' => $deployedItem->getRawOriginal('qr_code'),
+            'attributes' => $deployedItem->getAttributes(),
+            'table_columns' => \Schema::getColumnListing('deployed_items')
+        ]);
+    })->name('test-qr');
+    
     // Archive routes for supplies - Placing these before the resource route to avoid conflicts
     Route::get('supplies/archived', [SupplyController::class, 'archived'])->name('supplies.archived');
     Route::put('supplies/{supply}/archive', [SupplyController::class, 'archive'])->name('supplies.archive');
