@@ -7,7 +7,7 @@
     <div class="intro-y flex flex-col sm:flex-row items-center mt-8">
         <h2 class="text-lg font-medium mr-auto">Deployed Item Details</h2>
         <div class="w-full sm:w-auto flex mt-4 sm:mt-0">
-            <button type="button" class="btn btn-secondary" onclick="showQRCode('{{ $deployedItem->qrCode }}')">
+            <button type="button" class="btn btn-secondary" onclick="showQRCode('{{ $deployedItem->qr_code ?? $deployedItem->qrCode }}')">
                 <i data-lucide="qrcode" class="w-4 h-4 mr-2"></i> Show QR Code
             </button>
             <a href="{{ route('deployed-items.index') }}" class="btn btn-outline-secondary ml-2">
@@ -63,7 +63,7 @@
                 
                 <div class="md:col-span-2">
                     <div class="text-slate-500">QR Code</div>
-                    <div class="font-mono text-xs bg-slate-100 dark:bg-darkmode-800 p-2 rounded inline-block">{{ $deployedItem->qrCode }}</div>
+                    <div class="font-mono text-xs bg-slate-100 dark:bg-darkmode-800 p-2 rounded inline-block">{{ $deployedItem->qr_code ?? $deployedItem->qrCode }}</div>
                 </div>
             </div>
         </div>
@@ -220,7 +220,7 @@
                     </head>
                     <body>
                         <div class="item-name">{{ $deployedItem->itemName }}</div>
-                        <div class="item-code">{{ $deployedItem->qrCode }}</div>
+                        <div class="item-code">{{ $deployedItem->qr_code ?? $deployedItem->qrCode }}</div>
                         <div class="qrcode">${qrCodeContent}</div>
                         <script>window.onload = () => window.print()<\/script>
                     </body>
