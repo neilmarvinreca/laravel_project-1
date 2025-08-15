@@ -343,6 +343,39 @@ class DeployedItemController extends Controller
             'activities.causer'
         ]);
         
+        // Debug: Log QR code data to help troubleshoot
+        \Log::info('DeployedItem QR Code Debug', [
+            'deployedID' => $deployedItem->deployedID,
+            'qrCode' => $deployedItem->qrCode,
+            'qr_code' => $deployedItem->getRawOriginal('qr_code'),
+            'attributes' => $deployedItem->getAttributes(),
+            'raw_attributes' => $deployedItem->getRawOriginal(),
+            'table_name' => $deployedItem->getTable(),
+            'connection' => $deployedItem->getConnectionName()
+        ]);
+        
+        // Also check if the QR code column exists in the database
+        try {
+            $columns = \Schema::getColumnListing('deployed_items');
+            \Log::info('Deployed items table columns', $columns);
+            
+            // Check if qr_code column exists
+            if (!in_array('qr_code', $columns)) {
+                \Log::warning('qr_code column not found in deployed_items table');
+            }
+            
+            // Check database connection
+            $connection = \DB::connection();
+            \Log::info('Database connection status', [
+                'connected' => $connection->getPdo() ? 'Yes' : 'No',
+                'database' => $connection->getDatabaseName(),
+                'driver' => $connection->getDriverName()
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error getting table columns', ['error' => $e->getMessage()]);
+        }
+        
         return view('deployed_items.show', compact('deployedItem'));
     }
 
